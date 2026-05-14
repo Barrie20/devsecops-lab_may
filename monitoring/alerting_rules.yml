@@ -1,0 +1,88 @@
+# Security Alerting Rules
+# Used with monitoring systems (Prometheus/Grafana/CloudWatch)
+
+rules:
+  # Authentication alerts
+  - name: failed_login_spike
+    description: "More than 10 failed logins in 5 minutes"
+    condition: "count(failed_logins) > 10"
+    window: "5m"
+    severity: HIGH
+    action: notify_security_team
+
+  - name: root_account_usage
+    description: "Root account API activity detected"
+    condition: "user_identity.type == 'Root'"
+    severity: CRITICAL
+    action: page_on_call
+
+  # Infrastructure alerts
+  - name: security_group_change
+    description: "Security group modified"
+    condition: "event_name in ['AuthorizeSecurityGroupIngress', 'RevokeSecurityGroupIngress']"
+    severity: MEDIUM
+    action: notify_security_team
+
+  - name: cloudtrail_disabled
+    description: "CloudTrail logging was stopped or deleted"
+    condition: "event_name in ['StopLogging', 'DeleteTrail']"
+    severity: CRITICAL
+    action: page_on_call
+
+  # Application alerts
+  - name: high_error_rate
+    description: "Error rate exceeds 5% of requests"
+    condition: "error_rate > 0.05"
+    window: "5m"
+    severity: HIGH
+    action: notify_dev_team
+
+  - name: response_time_degradation
+    description: "P95 response time exceeds 2 seconds"
+    condition: "p95_latency > 2000"
+    window: "5m"
+    severity: MEDIUM
+    action: notify_dev_team
+
+  - name: container_restart_loop
+    description: "Container restarted more than 3 times in 10 minutes"
+    condition: "restart_count > 3"
+    window: "10m"
+    severity: HIGH
+    action: notify_dev_team
+
+  # Data security alerts
+  - name: s3_public_access
+    description: "S3 bucket public access settings changed"
+    condition: "event_name in ['PutBucketPolicy', 'PutBucketAcl', 'PutPublicAccessBlock']"
+    severity: HIGH
+    action: notify_security_team
+
+  - name: iam_policy_escalation
+    description: "IAM policy attached or modified"
+    condition: "event_name in ['AttachUserPolicy', 'AttachRolePolicy', 'PutUserPolicy', 'PutRolePolicy']"
+    severity: HIGH
+    action: notify_security_team
+
+  - name: unusual_data_transfer
+    description: "Large data transfer detected (>1GB outbound)"
+    condition: "bytes_out > 1073741824"
+    window: "1h"
+    severity: MEDIUM
+    action: notify_security_team
+
+# Notification channels
+channels:
+  notify_security_team:
+    type: slack
+    channel: "#security-alerts"
+    mention: "@security-team"
+
+  notify_dev_team:
+    type: slack
+    channel: "#dev-alerts"
+
+  page_on_call:
+    type: pagerduty
+    service: "security-critical"
+    urgency: high
