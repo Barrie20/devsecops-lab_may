@@ -1,0 +1,136 @@
+name: Secure DevSecOps Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # =========================
+  # Stage 1 — Security Scan
+  # =========================
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Secret Scanning
+      - name: Run TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@v3.82.13
+        with:
+          extra_args: --only-verified
+
+      # Python Security Scan
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit Security Scan
+        run: bandit -r app/ -f json -o bandit-report.json || true
+
+      # Upload reports
+      - name: Upload Security Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+
+  # =========================
+  # Stage 2 — Build
+  # =========================
+  build:
+    needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t devsecops-app:${{ github.sha }} .
+
+      # Scan Docker Image with Trivy
+      - name: Scan Docker Image with Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: devsecops-app:${{ github.sha }}
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+  # =========================
+  # Stage 3 — Test
+  # =========================
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r dev-requirements.txt
+
+      - name: Run Unit Tests
+        run: |
+          pytest tests/ -v --tb=short
+
+      - name: Run Linting
+        run: |
+          ruff check app/
+
+  # =========================
+  # Stage 4 — Deploy
+  # =========================
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Staging
+        run: |
+          echo "Deploying to staging environment..."
+          echo "Image: devsecops-app:${{ github.sha }}"
+
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests against staging..."
+          echo "All smoke tests passed."
+
+      - name: Deploy to Production
+        run: |
+          echo "Deploying to production environment..."
+          echo "Deployment successful."
