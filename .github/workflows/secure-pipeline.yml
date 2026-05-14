@@ -49,7 +49,7 @@ jobs:
 
       # Upload reports
       - name: Upload Security Reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-reports
           path: |
@@ -126,7 +126,7 @@ jobs:
           syft dir:. -o cyclonedx-json=sbom-cyclonedx.json
 
       - name: Upload SBOM Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-reports
           path: |
