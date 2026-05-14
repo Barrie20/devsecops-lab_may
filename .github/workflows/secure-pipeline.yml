@@ -31,7 +31,7 @@ jobs:
 
       # Secret Scanning
       - name: Run TruffleHog Secret Scan
-        uses: trufflesecurity/trufflehog@v3.82.13
+        uses: trufflesecurity/trufflehog@v3.95.3
         with:
           extra_args: --only-verified
 
